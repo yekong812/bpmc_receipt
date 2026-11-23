@@ -44,6 +44,7 @@ from .annual_service import (
     LABEL,
 )
 from .annual_excel import parse_workbook, export_book
+from .church_ledger import export_church_ledger
 from .schemas import RevisionIn, FinalizeIn, CommitIn, ReceiptAnalysisIn
 from .workflow import editable, audit, version_row, receipt_archive
 from .ppt import generate_ppt, MIME, select_receipts
@@ -415,6 +416,23 @@ def book_excel(
         export_book(snap),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         f'{"DRAFT_" if not snap.get("final_version") else ""}{LABEL[kind]}_{b.year}_장부.xlsx',
+    )
+
+
+@router.get("/ordinary/books/{book_id}/excel/export-church-ledger")
+def church_ledger_excel(
+    book_id: int,
+    draft: bool = False,
+    db: Session = Depends(session),
+):
+    from .main import download
+
+    b = get_book(db, "ordinary", book_id)
+    snap = output_snapshot(db, b, draft=draft)
+    return download(
+        export_church_ledger(snap),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        f'{"DRAFT_" if not snap.get("final_version") else ""}{b.year}_교회_장부.xlsx',
     )
 
 

@@ -160,6 +160,14 @@ export default function AnnualLedger({ kind }: { kind: "ordinary" | "b" }) {
       `${book.latest_final_version ? "" : "DRAFT_"}${label}_${book.year}_${from}_${to}.${type === "excel" ? "xlsx" : type}`,
     );
   }
+  async function exportChurchLedger() {
+    if (!book) return;
+    const draft = book.status !== "최종 확정";
+    await download(
+      `/ordinary/books/${book.id}/excel/export-church-ledger${draft ? "?draft=true" : ""}`,
+      `${draft ? "DRAFT_" : ""}${book.year}_교회_장부.xlsx`,
+    );
+  }
   const stats = book?.totals;
   const draftIncome = rows.reduce((s, x) => s + (x.income_krw || 0), 0),
     draftExpense = rows.reduce((s, x) => s + (x.expense_krw || 0), 0),
@@ -445,6 +453,14 @@ export default function AnnualLedger({ kind }: { kind: "ordinary" | "b" }) {
                   >
                     ↧ Excel
                   </button>
+                  {kind === "ordinary" && (
+                    <button
+                      disabled={busy}
+                      onClick={() => guard(() => action(exportChurchLedger))}
+                    >
+                      ↧ 교회 장부 Excel
+                    </button>
+                  )}
                   <button
                     disabled={busy}
                     onClick={() =>

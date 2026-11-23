@@ -295,6 +295,67 @@ def test_budget_copy_and_b_carryover_totals(client):
     assert c.get(f"/api/b/books/{cash['id']}/budget").status_code == 404
 
 
+def test_church_ledger_exports_monthly_balances_and_receipt_numbers(client):
+    b = budget(client, book(client))
+    prefix = f"/api/ordinary/books/{b['id']}/excel/export-church-ledger"
+    assert client.get(prefix + "?draft=true").status_code == 422
+    entry(
+        client,
+        b,
+        transaction_date="2026-01-01",
+        entry_type="carryover",
+        income_krw=100000,
+        expense_krw=0,
+        description="전기 이월",
+    )
+    entry(
+        client,
+        b,
+        transaction_date="2026-01-01",
+        entry_type="income",
+        income_krw=2000000,
+        expense_krw=0,
+        description="1월 경상비",
+    )
+    expense = entry(client, b, transaction_date="2026-01-03", expense_krw=1083930)
+    owner = {"id": b["owner_event_id"]}
+    receipt = confirm_receipt(client, upload(client, owner), 1083930, "2026-01-03T09:00:00")
+    link = client.post(
+        f"/api/events/{owner['id']}/receipt-links",
+        json={
+            "expense_id": expense["expense_id"],
+            "receipt_id": receipt["id"],
+            "allocated_amount_krw": 1083930,
+        },
+    )
+    assert link.status_code == 200, link.text
+    entry(
+        client,
+        b,
+        transaction_date="2026-03-01",
+        entry_type="carryover",
+        income_krw=1016070,
+        expense_krw=0,
+        description="전월 이월",
+    )
+    entry(client, b, transaction_date="2026-03-02", expense_krw=16070)
+    entry(client, b, transaction_date=None, expense_krw=1000)
+
+    result = client.get(prefix + "?draft=true")
+    assert result.status_code == 200, result.text
+    workbook = load_workbook(io.BytesIO(result.content), data_only=True)
+    assert workbook.sheetnames == ["청년부(1월)", "청년부(2월)", "청년부(3월)", "날짜 미확인"]
+    jan, feb, mar, unknown = (workbook[name] for name in workbook.sheetnames)
+    assert jan["D3"].value == "부서 : 청년부" and jan["D4"].value == "2026년 1월"
+    assert jan["E7"].value == 100000 and jan["E24"].value == 2000000
+    assert jan["F24"].value == 1083930 and jan["E25"].value == 1016070
+    assert jan["G9"].value == str(receipt["receipt_number"])
+    assert jan["B24"].fill.fgColor.rgb.endswith("F4CCCC") and jan["B26"].value == "결재"
+    assert feb["E7"].value == feb["E25"].value == mar["E7"].value == 1016070
+    assert mar["E24"].value == 0 and mar["F24"].value == 16070 and mar["E25"].value == 1000000
+    assert unknown["F8"].value == 1000 and unknown["E25"].value is None
+
+
 def test_annual_excel_roundtrip_and_wrong_year(client):
     c = client
     b = budget(c, book(c))
