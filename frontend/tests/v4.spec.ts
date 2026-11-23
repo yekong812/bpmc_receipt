@@ -128,7 +128,7 @@ test("경상비 연도 생성·관항목·거래·확정 집계·새해 예산 �
     page.getByRole("button", { name: "↧ Excel", exact: true }).click(),
   ]);
   await page
-    .getByRole("button", { name: "↥ Excel 가져오기", exact: true })
+    .getByRole("button", { name: "↥ Excel 장부 업로드", exact: true })
     .click();
   const importing = page.getByRole("dialog", {
     name: "장부 Excel 가져오기",
@@ -339,7 +339,9 @@ test("B 수입·이월·영수증 검토·지출 생성·확정·PPTX ZIP", asyn
   const pptDownload = page.waitForEvent("download");
   const loadingPpt = page.getByRole("dialog", { name: "영수증 PPTX 준비 중" });
   try {
-    await page.getByRole("button", { name: "↧ PPTX", exact: true }).click();
+    await page
+      .getByRole("button", { name: "↧ 영수증 ppt", exact: true })
+      .click();
     await expect(loadingPpt).toBeVisible();
   } finally {
     releasePpt();

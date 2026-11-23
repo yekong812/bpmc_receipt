@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { api, download, EventData, Receipt, won } from "../lib/api";
+import { api, EventData, Receipt, won } from "../lib/api";
 import { useSessionFilters } from "../lib/useSessionFilters";
 import Dialog from "./Dialog";
-import { usePptDownload } from "./AppShell";
 
 const receiptColumns = [
   ["number", "No."],
@@ -71,7 +70,6 @@ export default function ReceiptManager({
   inform,
   onDirtyChange,
   hideCategories = false,
-  hideExports = false,
   categoryNames,
   reviewTarget,
   readOnlyReason,
@@ -83,12 +81,10 @@ export default function ReceiptManager({
   inform: (s: string) => void;
   onDirtyChange: (dirty: boolean) => void;
   hideCategories?: boolean;
-  hideExports?: boolean;
   categoryNames?: Record<number, string>;
   reviewTarget?: { id: number; onClose: () => void };
   readOnlyReason?: string;
 }) {
-  const downloadPpt = usePptDownload();
   const [filters, setFilters] = useSessionFilters(
     `receipts:${event.id}:${event.created_at}`,
     emptyFilters,
@@ -146,7 +142,6 @@ export default function ReceiptManager({
       .then((h) => setLlm(h.llm))
       .catch(() => {});
   }, []);
-  const [includeUnknown, setIncludeUnknown] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const statusDropdown = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -463,48 +458,6 @@ export default function ReceiptManager({
             {restoreIds.length ? ` (${restoreIds.length}장)` : ""}
           </button>
         </div>
-        {!hideExports && (
-          <div className="actions wrap">
-            <label className="check-label small">
-              <input
-                type="checkbox"
-                checked={includeUnknown}
-                onChange={(e) => setIncludeUnknown(e.target.checked)}
-              />
-              PPT 미확인 포함
-            </label>
-            <button
-              disabled={
-                (busy && !event.latest_final_version) ||
-                analyzing ||
-                !event.receipts.length
-              }
-              onClick={() =>
-                action(() =>
-                  downloadPpt(
-                    `/events/${event.id}/receipts/export-pptx?${event.latest_final_version ? "" : "draft=true&"}include_unverified=${includeUnknown}`,
-                    `${event.latest_final_version ? "" : "DRAFT_"}${event.name}_영수증증빙자료.pptx`,
-                  ),
-                )
-              }
-            >
-              ↧ PPTX 다운로드
-            </button>
-            <button
-              disabled={analyzing || !event.receipts.length}
-              onClick={() =>
-                action(() =>
-                  download(
-                    `/events/${event.id}/receipts/export-zip${event.latest_final_version ? "" : "?draft=true"}`,
-                    `${event.latest_final_version ? "" : "DRAFT_"}${event.name}_영수증.zip`,
-                  ),
-                )
-              }
-            >
-              ↧ 정리된 ZIP 다운로드
-            </button>
-          </div>
-        )}
       </div>
       <p className="muted small">
         JPG·PNG·WebP / ZIP당 최대 300장, 60MB (압축 해제 후 총 250MB) · 이미지
@@ -860,7 +813,10 @@ export default function ReceiptManager({
                     ? "확인된 검토값을 수정하려면 재검토를 누르세요."
                     : "원본과 추출값을 확인한 뒤 검토값 확인을 누르세요. 검토 사유는 메모로 남겨둘 수 있습니다."}
               </p>
-              <fieldset className="grid-fieldset" disabled={confirmed || excluded}>
+              <fieldset
+                className="grid-fieldset"
+                disabled={confirmed || excluded}
+              >
                 {!!extractions.length && (
                   <details className="extraction-comparison">
                     <summary>
@@ -1050,7 +1006,11 @@ export default function ReceiptManager({
                         if (confirmed) {
                           await api(`/receipts/${editing.id}/review`, "POST");
                         } else {
-                          await api(`/receipts/${editing.id}`, "PATCH", editing);
+                          await api(
+                            `/receipts/${editing.id}`,
+                            "PATCH",
+                            editing,
+                          );
                         }
                         await refresh();
                         inform(

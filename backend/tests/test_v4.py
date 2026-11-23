@@ -448,6 +448,30 @@ def test_ppt_twenty_receipts_seven_slides_no_cropping_and_stable_numbers(client)
     assert "영수증 #1" in captions
 
 
+def test_event_receipt_exports_can_filter_by_date(client):
+    event = create(client)
+    endpoint = f"/api/events/{event['id']}/receipts"
+    images = []
+    for color in ("red", "blue"):
+        raw = io.BytesIO()
+        Image.new("RGB", (30, 40), color).save(raw, format="PNG")
+        images.append((f"{color}.png", raw.getvalue()))
+    upload(client, event, image_zip(images))
+    for receipt, day in zip(client.get(endpoint).json(), ("08", "09")):
+        confirm_receipt(client, receipt, 5000, f"2026-11-{day}T09:00:00")
+    query = "?draft=true&from=2026-11-09&to=2026-11-09"
+    ppt = client.get(endpoint + "/export-pptx" + query)
+    assert ppt.status_code == 200, ppt.text
+    slide = Presentation(io.BytesIO(ppt.content)).slides[0]
+    assert sum(s.shape_type == MSO_SHAPE_TYPE.PICTURE for s in slide.shapes) == 1
+    assert any("2026-11-09 09:00" in s.text for s in slide.shapes if s.has_text_frame)
+    archive = client.get(endpoint + "/export-zip" + query)
+    assert archive.status_code == 200, archive.text
+    with zipfile.ZipFile(io.BytesIO(archive.content)) as output:
+        assert output.namelist() == ["receipts/1_5000.png", "receipts_summary.csv"]
+        assert "red.png" in output.read("receipts_summary.csv").decode("utf-8-sig")
+
+
 def test_ppt_unverified_and_corrupt_file_errors(client):
     from backend.app.db import STORAGE
     from backend.app.models import Receipt

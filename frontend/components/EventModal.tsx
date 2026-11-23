@@ -44,7 +44,9 @@ export default function EventModal({
     [focusedExpense, setFocusedExpense] = useState<number | null>(null),
     [childDirty, setChildDirty] = useState(false),
     [reviewReceiptId, setReviewReceiptId] = useState<number | null>(null),
-    [includeUnknown, setIncludeUnknown] = useState(false);
+    [includeUnknown, setIncludeUnknown] = useState(false),
+    [from, setFrom] = useState(""),
+    [to, setTo] = useState("");
   const locked = event.status === "최종 확정";
   const expenseDirty = JSON.stringify(draft) !== JSON.stringify(event.expenses);
   const dirty = expenseDirty || childDirty;
@@ -108,6 +110,27 @@ export default function EventModal({
       return;
     }
     fn();
+  }
+  async function exportFile(type: "excel" | "pptx" | "zip") {
+    const params = new URLSearchParams();
+    if (!event.latest_final_version) params.set("draft", "true");
+    if (type !== "excel") {
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+    }
+    if (type === "pptx" && includeUnknown)
+      params.set("include_unverified", "true");
+    const path = type === "excel" ? "excel/export" : `receipts/export-${type}`;
+    const suffix = {
+      excel: "지출내역.xlsx",
+      pptx: "영수증증빙자료.pptx",
+      zip: "영수증.zip",
+    }[type];
+    const downloadFile = type === "pptx" ? downloadPpt : download;
+    await downloadFile(
+      `/events/${event.id}/${path}?${params}`,
+      `${event.latest_final_version ? "" : "DRAFT_"}${event.name}_${suffix}`,
+    );
   }
   const total = draft.reduce((a, e) => a + Number(e.amount_krw || 0), 0);
   const update = (i: number, key: keyof Expense, value: unknown) =>
@@ -238,6 +261,62 @@ export default function EventModal({
         </div>
       )}
       <div className="detail-body">
+        <div className="toolbar export-toolbar">
+          <div className="actions wrap">
+            <label className="small">
+              출력 시작
+              <input
+                aria-label="출력 시작일"
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </label>
+            <label className="small">
+              종료
+              <input
+                aria-label="출력 종료일"
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </label>
+            <label className="check-label small">
+              <input
+                type="checkbox"
+                checked={includeUnknown}
+                onChange={(e) => setIncludeUnknown(e.target.checked)}
+              />
+              PPT 미확인 영수증 포함
+            </label>
+          </div>
+          <div className="actions wrap">
+            <button
+              disabled={busy || locked || tab !== "expenses"}
+              onClick={() => guard(() => setImporting(true))}
+            >
+              ↥ Excel 장부 업로드
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => guard(() => action(() => exportFile("excel")))}
+            >
+              ↧ Excel
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => guard(() => action(() => exportFile("pptx")))}
+            >
+              ↧ 영수증 ppt
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => guard(() => action(() => exportFile("zip")))}
+            >
+              ↧ 영수증 ZIP
+            </button>
+          </div>
+        </div>
         {tab === "expenses" && (
           <>
             <div className="toolbar">
@@ -300,58 +379,6 @@ export default function EventModal({
                   }
                 >
                   일괄 검토
-                </button>
-              </div>
-              <div className="actions">
-                <button
-                  disabled={busy || locked}
-                  onClick={() => guard(() => setImporting(true))}
-                >
-                  ↥ Excel 가져오기
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    guard(() =>
-                      action(() =>
-                        download(
-                          `/events/${event.id}/excel/export${event.latest_final_version ? "" : "?draft=true"}`,
-                          `${event.latest_final_version ? "" : "DRAFT_"}${event.name}_지출내역.xlsx`,
-                        ),
-                      ),
-                    )
-                  }
-                >
-                  ↧ Excel 내보내기
-                </button>
-                <label className="check-label small">
-                  <input
-                    type="checkbox"
-                    checked={includeUnknown}
-                    onChange={(e) => setIncludeUnknown(e.target.checked)}
-                  />
-                  PPT 미확인 포함
-                </label>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    guard(() =>
-                      action(() =>
-                        downloadPpt(
-                          `/events/${event.id}/receipts/export-pptx?${event.latest_final_version ? "" : "draft=true&"}include_unverified=${includeUnknown}`,
-                          `${event.latest_final_version ? "" : "DRAFT_"}${event.name}_영수증증빙자료.pptx`,
-                        ),
-                      ),
-                    )
-                  }
-                >
-                  ↧ PPTX 내보내기
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() => guard(() => setTab("receipts"))}
-                >
-                  영수증 ZIP 업로드
                 </button>
               </div>
             </div>

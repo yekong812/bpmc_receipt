@@ -71,10 +71,10 @@ test("행사 생성 → 지출 입력·저장 → 항목 변경 → Excel → �
   );
   const [file] = await Promise.all([
     page.waitForEvent("download"),
-    detail.getByRole("button", { name: "↧ Excel 내보내기" }).click(),
+    detail.getByRole("button", { name: "↧ Excel", exact: true }).click(),
   ]);
   expect(file.suggestedFilename()).toBe(`DRAFT_${name}_지출내역.xlsx`);
-  await detail.getByRole("button", { name: "↥ Excel 가져오기" }).click();
+  await detail.getByRole("button", { name: "↥ Excel 장부 업로드" }).click();
   await expect(
     page.getByRole("dialog", { name: "Excel 가져오기", exact: true }),
   ).toBeVisible();
@@ -174,13 +174,17 @@ test("영수증 ZIP 업로드 → 검토 → 배분 연결 → 정리 ZIP", asyn
     await expect(
       review.getByRole("img", { name: "receipt.png 영수증 원본" }),
     ).toBeVisible();
-    await review.getByRole("button", { name: "중복 제외", exact: true }).click();
+    await review
+      .getByRole("button", { name: "중복 제외", exact: true })
+      .click();
     await expect(receiptRow).toContainText("제외");
     await expect(
       review.getByRole("button", { name: "제외 해제", exact: true }),
     ).toBeEnabled();
     page.once("dialog", (dialog) => dialog.accept());
-    await review.getByRole("button", { name: "제외 해제", exact: true }).click();
+    await review
+      .getByRole("button", { name: "제외 해제", exact: true })
+      .click();
     await expect(receiptRow).toContainText("대기");
     await expect(
       review.getByRole("button", { name: "검토값 확인", exact: true }),
@@ -319,7 +323,7 @@ test("영수증 ZIP 업로드 → 검토 → 배분 연결 → 정리 ZIP", asyn
     await expect(amountHeader).toHaveAttribute("aria-sort", "descending");
     const [zip] = await Promise.all([
       page.waitForEvent("download"),
-      detail.getByRole("button", { name: "↧ 정리된 ZIP 다운로드" }).click(),
+      detail.getByRole("button", { name: "↧ 영수증 ZIP", exact: true }).click(),
     ]);
     expect(zip.suggestedFilename()).toBe(`DRAFT_${event.name}_영수증.zip`);
     await detail.getByRole("tab", { name: /지출내역/ }).click();

@@ -1297,22 +1297,41 @@ def expense_from_receipt(receipt_id: int, category_id: int, db: Session = Depend
 
 @app.get("/api/events/{event_id}/receipts/export-zip")
 def export_receipts(
-    event_id: int, version: int | None = None, draft: bool = False, db: Session = Depends(session)
+    event_id: int,
+    version: int | None = None,
+    draft: bool = False,
+    db: Session = Depends(session),
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
 ):
     e = get(db, Event, event_id)
     if version or (e.latest_final_version and not draft):
         row = version_row(db, e, version)
         snap = json.loads(row.snapshot_json)
-        return download(
-            receipt_archive(snap), "application/zip", f'{snap["name"]}_v{row.version_no}_영수증.zip'
-        )
-    if not draft:
+        filename = f'{snap["name"]}_v{row.version_no}_영수증.zip'
+    elif draft:
+        rs = rows(db, Receipt, event_id)
+        if not rs:
+            raise HTTPException(422, "영수증이 없습니다.")
+        snap = {"receipts": [{**encode(r), "stored_path": r.stored_path} for r in rs]}
+        filename = f"DRAFT_{e.name}_영수증.zip"
+    else:
         raise HTTPException(422, "확정본이 없습니다. 먼저 최종 확정하거나 초안 ZIP을 선택하세요.")
-    rs = rows(db, Receipt, event_id)
-    if not rs:
-        raise HTTPException(422, "영수증이 없습니다.")
-    snap = {"receipts": [{**encode(r), "stored_path": r.stored_path} for r in rs]}
-    return download(receipt_archive(snap), "application/zip", f"DRAFT_{e.name}_영수증.zip")
+    if from_date or to_date:
+        start = from_date.isoformat() if from_date else ""
+        end = to_date.isoformat() if to_date else ""
+        if start and end and start > end:
+            raise HTTPException(422, "출력 시작일은 종료일 이전이어야 합니다.")
+        snap["receipts"] = [
+            r
+            for r in snap["receipts"]
+            if not (day := (r.get("transaction_at") or "")[:10])
+            or (not start or day >= start)
+            and (not end or day <= end)
+        ]
+        if not snap["receipts"]:
+            raise HTTPException(422, "선택한 범위에 출력할 영수증이 없습니다.")
+    return download(receipt_archive(snap), "application/zip", filename)
 
 
 @app.get("/api/receipts/{receipt_id}/extractions")
@@ -1513,6 +1532,8 @@ def event_ppt(
     include_unverified: bool = False,
     per_slide: int = 3,
     db: Session = Depends(session),
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
 ):
     from .ppt import generate_ppt, MIME
 
@@ -1527,7 +1548,13 @@ def event_ppt(
     else:
         raise HTTPException(422, "확정본이 없습니다. 초안 출력 옵션을 선택하세요.")
     return download(
-        generate_ppt(snap, include_unverified=include_unverified, per_slide=per_slide),
+        generate_ppt(
+            snap,
+            from_date.isoformat() if from_date else "",
+            to_date.isoformat() if to_date else "",
+            include_unverified=include_unverified,
+            per_slide=per_slide,
+        ),
         MIME,
         f'{"DRAFT_" if not snap.get("final_version") else ""}{snap["name"]}_영수증증빙자료.pptx',
     )

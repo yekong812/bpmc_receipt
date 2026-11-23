@@ -443,7 +443,7 @@ export default function AnnualLedger({ kind }: { kind: "ordinary" | "b" }) {
                       )
                     }
                   >
-                    ↥ Excel 가져오기
+                    ↥ Excel 장부 업로드
                   </button>
                   <button
                     disabled={busy}
@@ -467,7 +467,7 @@ export default function AnnualLedger({ kind }: { kind: "ordinary" | "b" }) {
                       guard(() => action(() => exportFile("pptx")))
                     }
                   >
-                    ↧ PPTX
+                    ↧ 영수증 ppt
                   </button>
                   <button
                     disabled={busy}
@@ -519,7 +519,6 @@ export default function AnnualLedger({ kind }: { kind: "ordinary" | "b" }) {
                       : undefined
                   }
                   hideCategories={kind === "b"}
-                  hideExports={true}
                   categoryNames={Object.fromEntries(
                     book.budget
                       .filter((i) => i.level === 3 && i.category_id)

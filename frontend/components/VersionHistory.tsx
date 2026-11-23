@@ -117,7 +117,7 @@ export default function VersionHistory({
                         )
                       }
                     >
-                      PPTX
+                      영수증 ppt
                     </button>
                   </div>
                 </td>
